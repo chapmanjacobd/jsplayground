@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hide Seen Rows
 // @namespace    https://github.com/chapmanjacobd/jsplayground/
-// @version      0.4.39
+// @version      0.4.40
 // @description  Remember and hide unique rows based on URL
 // @author       Jacob Chapman
 // @match        *://*/*
@@ -111,11 +111,7 @@
       rows.forEach((row) => {
         let identifier = getRowIdentifier(row);
         if (identifier) {
-          identifier.style = "";
-          var images = row.querySelectorAll("img");
-          images.forEach(function(image) {
-            image.style.filter = "";
-          });
+          row.style.display = "";
           let storedValue = localStorage.getItem(identifier);
           if (storedValue) {
             let timestamp = parseInt(storedValue, 10);
@@ -123,10 +119,7 @@
               let timeDifference = Date.now() - timestamp;
               let hoursDifference = timeDifference / (1e3 * 60 * 60);
               if (hoursDifference > thresholdHours) {
-                identifier.style = "color: #888 !important";
-                images.forEach(function(image) {
-                  image.style.filter = "saturate(0) opacity(0.4)";
-                });
+                row.style.display = "none";
               }
             }
           }

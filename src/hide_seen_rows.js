@@ -123,11 +123,8 @@ function hasAnySubstringInParamKeys(paramKeys, substrings) {
         rows.forEach(row => {
             let identifier = getRowIdentifier(row)
             if (identifier) {
-                identifier.style = ""
-                var images = row.querySelectorAll('img');
-                images.forEach(function(image) {
-                    image.style.filter = "";
-                });
+                row.style.display = ""
+
                 let storedValue = localStorage.getItem(identifier)
                 if (storedValue) {
                     let timestamp = parseInt(storedValue, 10)
@@ -135,10 +132,7 @@ function hasAnySubstringInParamKeys(paramKeys, substrings) {
                         let timeDifference = Date.now() - timestamp
                         let hoursDifference = timeDifference / (1000 * 60 * 60)
                         if (hoursDifference > thresholdHours) {
-                            identifier.style = "color: #888 !important"
-                            images.forEach(function(image) {
-                                image.style.filter = "saturate(0) opacity(0.4)";
-                            });
+                            row.style.display = "none"
                         }
                     }
                 }
