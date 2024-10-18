@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hide Seen Rows
 // @namespace    https://github.com/chapmanjacobd/jsplayground/
-// @version      0.4.41
+// @version      0.4.42
 // @description  Remember and hide unique rows based on URL
 // @author       Jacob Chapman
 // @match        *://*/*
@@ -38,7 +38,10 @@
       score -= 8;
     }
     if (relativePath.includes("comment")) {
-      score -= 1;
+      score -= 5;
+    }
+    if (relativePath.includes("guides")) {
+      score -= 5;
     }
     if (relativePath.length < 5) {
       score -= 200;
@@ -137,12 +140,13 @@
     }
     function findTableWithMostRows() {
       let tables = document.querySelectorAll("table");
+      let minRows = 5;
       let maxRows = 0;
       let tableWithMostRows = null;
       tables.forEach((table) => {
         let rows = table.querySelectorAll("tr");
         let directRows = Array.from(rows).filter((row) => row.parentElement === table || row.parentElement.tagName === "TBODY" && row.parentElement.parentElement === table);
-        if (directRows.length > maxRows) {
+        if (directRows.length > maxRows && directRows.length > minRows) {
           maxRows = directRows.length;
           tableWithMostRows = table;
         }
