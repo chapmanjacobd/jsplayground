@@ -28,8 +28,12 @@ export function calcLinkScore(link) {
         score -= 3
     }
 
+    if (paramKeys.length && hasAnySubstringInParamKeys(paramKeys, ['id'])) {
+        score += 2
+    }
+
     if (paramKeys.length && hasAnySubstringInParamKeys(paramKeys, ['category', 'cat'])) {
-        score -= 5
+        score -= 8
     }
 
     if (relativePath.includes('comment')) {
@@ -45,10 +49,9 @@ export function calcLinkScore(link) {
 
 export function sortByPriority(links) {
     if ('sort' in links)
-        links.sort((a, b) => calcLinkScore(b) - calcLinkScore(a))
+        return links.sort((a, b) => calcLinkScore(b) - calcLinkScore(a))
     else
-        links.values().toArray().sort((a, b) => calcLinkScore(b) - calcLinkScore(a))
-    return links
+        return links.values().toArray().sort((a, b) => calcLinkScore(b) - calcLinkScore(a))
 }
 
 function hasAnySubstringInParamKeys(paramKeys, substrings) {

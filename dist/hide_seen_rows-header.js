@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hide Seen Rows
 // @namespace    https://github.com/chapmanjacobd/jsplayground/
-// @version      0.4.40
+// @version      0.4.41
 // @description  Remember and hide unique rows based on URL
 // @author       Jacob Chapman
 // @match        *://*/*
