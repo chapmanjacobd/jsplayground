@@ -1,17 +1,17 @@
 // ==UserScript==
-// @name         Hide Seen Rows
+// @name         Hide Seen Links
 // @namespace    https://github.com/chapmanjacobd/jsplayground/
 // @version      0.4.43
-// @description  Remember and hide unique rows based on URL
+// @description  Remember and hide unique URLs
 // @author       Jacob Chapman
 // @match        *://*/*
 // @grant        none
-// @downloadURL  https://raw.githubusercontent.com/chapmanjacobd/jsplayground/refs/heads/main/dist/hide_seen_rows.js
-// @updateURL    https://raw.githubusercontent.com/chapmanjacobd/jsplayground/refs/heads/main/dist/hide_seen_rows.js
+// @downloadURL  https://raw.githubusercontent.com/chapmanjacobd/jsplayground/refs/heads/main/dist/hide_seen_links.js
+// @updateURL    https://raw.githubusercontent.com/chapmanjacobd/jsplayground/refs/heads/main/dist/hide_seen_links.js
 // ==/UserScript==
 
 (() => {
-  // src/hide_seen_rows.js
+  // src/hide_seen_links.js
   function calcLinkScore(link) {
     const relativePath = link.pathname + link.search;
     const searchParams = new URLSearchParams(link.search);
@@ -68,9 +68,9 @@
   (function() {
     "use strict";
     let sliderHtml = `
-        <div id="hide_seen_rows" style="
+        <div id="hide_seen_links" style="
             position: fixed;
-            bottom: 10px;
+            bottom: 18px;
             left: 0;
             background: rgba(255, 255, 255, 0.8);
             padding: 10px;
@@ -78,7 +78,7 @@
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
             z-index: 1000;
             ">
-            <details><summary>h</summary>
+            <details><summary>L</summary>
             <input type="range" id="timeThresholdSlider" min="0" max="300" value="0">
                 <span id="timeThresholdDisplay" style="width: 200px;"></span>
             </details>
@@ -103,7 +103,7 @@
         }
       }
       document.getElementById("timeThresholdDisplay").textContent = displayText;
-      hideRows();
+      hideLinks();
     });
     function getTimeThreshold() {
       let slider = document.getElementById("timeThresholdSlider");
@@ -111,10 +111,10 @@
       let value = parseFloat(slider.value);
       return value;
     }
-    function hideRows() {
-      let rows = getRows();
+    function hideLinks() {
+      let links = getLinks();
       let thresholdHours = getTimeThreshold();
-      rows.forEach((row) => {
+      links.forEach((row) => {
         let identifier = getRowIdentifier(row);
         if (identifier) {
           row.style.display = "";
@@ -139,36 +139,36 @@
       }
       return sortByPriority(links)[0];
     }
-    function findTableWithMostRows() {
-      let tables = document.querySelectorAll("table");
-      let minRows = 5;
-      let maxRows = 0;
-      let tableWithMostRows = null;
-      tables.forEach((table) => {
-        let rows = table.querySelectorAll("tr");
-        let directRows = Array.from(rows).filter((row) => row.parentElement === table || row.parentElement.tagName === "TBODY" && row.parentElement.parentElement === table);
-        if (directRows.length > maxRows && directRows.length > minRows) {
-          maxRows = directRows.length;
-          tableWithMostRows = table;
+    function findDivWithMostLinks() {
+      let divs = document.querySelectorAll("div");
+      let minLinks = 5;
+      let maxLinks = 0;
+      let divWithMostLinks = null;
+      divs.forEach((div) => {
+        let links = div.querySelectorAll("a");
+        let directLinks = Array.from(links).filter((row) => row.parentElement === div || row.parentElement.parentElement === div);
+        if (directLinks.length > maxLinks && directLinks.length > minLinks) {
+          maxLinks = directLinks.length;
+          divWithMostLinks = div;
         }
       });
-      if (maxRows == 0) {
-        document.getElementById("hide_seen_rows").style.display = "none";
+      if (maxLinks == 0) {
+        document.getElementById("hide_seen_links").style.display = "none";
       } else {
-        document.getElementById("hide_seen_rows").style.display = "block";
+        document.getElementById("hide_seen_links").style.display = "block";
       }
-      return tableWithMostRows;
+      return divWithMostLinks;
     }
-    function getRows() {
-      let tableWithMostRows = findTableWithMostRows();
-      if (tableWithMostRows) {
-        return tableWithMostRows.querySelectorAll("tr");
+    function getLinks() {
+      let divWithMostLinks = findDivWithMostLinks();
+      if (divWithMostLinks) {
+        return divWithMostLinks.querySelectorAll("a");
       }
       return [];
     }
-    function markRowsAsSeen() {
-      let rows = getRows();
-      rows.forEach((row) => {
+    function markLinksAsSeen() {
+      let links = getLinks();
+      links.forEach((row) => {
         let identifier = getRowIdentifier(row);
         if (identifier) {
           console.log(identifier);
@@ -179,7 +179,7 @@
         }
       });
     }
-    hideRows();
-    markRowsAsSeen();
+    hideLinks();
+    markLinksAsSeen();
   })();
 })();

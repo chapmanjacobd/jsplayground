@@ -1,6 +1,6 @@
 {
   "type": "module",
-  "version": "0.4.42",
+  "version": "0.4.43",
   "devDependencies": {
     "esbuild": "^0.24.0",
     "happy-dom": "^15.7.4",
@@ -10,6 +10,7 @@
   "scripts": {
     "test": "vitest --no-file-parallelism --reporter=basic --disable-console-intercept",
     "prebuild": "node update-version.js",
-    "build": "node esbuild.config.js; cat dist/hide_seen_rows-header.js dist/hide_seen_rows.js | sponge dist/hide_seen_rows.js"
+    "build": "node esbuild.config.js",
+    "postbuild": "node post-build.js"
   }
 }

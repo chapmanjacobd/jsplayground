@@ -1,5 +1,7 @@
-import { readFileSync, writeFileSync } from 'fs'
-import { join } from 'path'
+import { readdirSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+
+const distDir = join(process.cwd(), 'dist');
 
 function incrementVersion(version, type) {
   const [major, minor, patch] = version.split('.').map(Number);
@@ -17,17 +19,26 @@ function incrementVersion(version, type) {
 const packageJsonPath = join(process.cwd(), 'package.json');
 const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8'));
 
-const headerFilePath = join(process.cwd(), 'dist', 'hide_seen_rows-header.js');
-const headerFileContent = readFileSync(headerFilePath, 'utf8');
-
 const newVersion = incrementVersion(packageJson.version, 'patch');
 packageJson.version = newVersion;
 writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
-const updatedHeaderFileContent = headerFileContent.replace(
-  /(\/\/ @version\s+)\d+\.\d+\.\d+/,
-  `$1${newVersion}`
-);
-writeFileSync(headerFilePath, updatedHeaderFileContent);
+const updateHeaderFile = (headerFileName) => {
+  const headerFilePath = join(distDir, headerFileName);
+  const headerFileContent = readFileSync(headerFilePath, 'utf8');
+
+  const updatedHeaderFileContent = headerFileContent.replace(
+    /(\/\/ @version\s+)\d+\.\d+\.\d+/,
+    `$1${newVersion}`
+  );
+  writeFileSync(headerFilePath, updatedHeaderFileContent);
+};
+
+const files = readdirSync(distDir);
+files.forEach(file => {
+  if (file.endsWith('-header.js')) {
+    updateHeaderFile(file);
+  }
+});
 
 console.log(`Version updated to ${newVersion}`);

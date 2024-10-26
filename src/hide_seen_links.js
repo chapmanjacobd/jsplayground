@@ -72,9 +72,9 @@ function hasAnySubstringInParamKeys(paramKeys, substrings) {
     'use strict'
 
     let sliderHtml = `
-        <div id="hide_seen_rows" style="
+        <div id="hide_seen_links" style="
             position: fixed;
-            bottom: 10px;
+            bottom: 18px;
             left: 0;
             background: rgba(255, 255, 255, 0.8);
             padding: 10px;
@@ -82,7 +82,7 @@ function hasAnySubstringInParamKeys(paramKeys, substrings) {
             box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
             z-index: 1000;
             ">
-            <details><summary>h</summary>
+            <details><summary>L</summary>
             <input type="range" id="timeThresholdSlider" min="0" max="300" value="0">
                 <span id="timeThresholdDisplay" style="width: 200px;"></span>
             </details>
@@ -112,7 +112,7 @@ function hasAnySubstringInParamKeys(paramKeys, substrings) {
         }
 
         document.getElementById('timeThresholdDisplay').textContent = displayText
-        hideRows()
+        hideLinks()
     })
 
     function getTimeThreshold() {
@@ -122,11 +122,11 @@ function hasAnySubstringInParamKeys(paramKeys, substrings) {
         return value
     }
 
-    function hideRows() {
-        let rows = getRows()
+    function hideLinks() {
+        let links = getLinks()
         let thresholdHours = getTimeThreshold()
 
-        rows.forEach(row => {
+        links.forEach(row => {
             let identifier = getRowIdentifier(row)
             if (identifier) {
                 row.style.display = ""
@@ -156,41 +156,41 @@ function hasAnySubstringInParamKeys(paramKeys, substrings) {
         return sortByPriority(links)[0]
     }
 
-    function findTableWithMostRows() {
-        let tables = document.querySelectorAll('table')
-        let minRows = 5
-        let maxRows = 0
-        let tableWithMostRows = null
+    function findDivWithMostLinks() {
+        let divs = document.querySelectorAll('div')
+        let minLinks = 5
+        let maxLinks = 0
+        let divWithMostLinks = null
 
-        tables.forEach(table => {
-            let rows = table.querySelectorAll('tr')
-            let directRows = Array.from(rows).filter(row => row.parentElement === table || (row.parentElement.tagName === 'TBODY' && row.parentElement.parentElement === table))
-            if (directRows.length > maxRows && directRows.length > minRows) {
-                maxRows = directRows.length
-                tableWithMostRows = table
+        divs.forEach(div => {
+            let links = div.querySelectorAll('a')
+            let directLinks = Array.from(links).filter(row => row.parentElement === div || row.parentElement.parentElement === div)
+            if (directLinks.length > maxLinks && directLinks.length > minLinks) {
+                maxLinks = directLinks.length
+                divWithMostLinks = div
             }
         })
 
-        if (maxRows == 0) {
-            document.getElementById('hide_seen_rows').style.display = "none"
+        if (maxLinks == 0) {
+            document.getElementById('hide_seen_links').style.display = "none"
         } else {
-            document.getElementById('hide_seen_rows').style.display = "block"
+            document.getElementById('hide_seen_links').style.display = "block"
         }
 
-        return tableWithMostRows
+        return divWithMostLinks
     }
 
-    function getRows() {
-        let tableWithMostRows = findTableWithMostRows()
-        if (tableWithMostRows) {
-            return tableWithMostRows.querySelectorAll('tr')
+    function getLinks() {
+        let divWithMostLinks = findDivWithMostLinks()
+        if (divWithMostLinks) {
+            return divWithMostLinks.querySelectorAll('a')
         }
         return []
     }
 
-    function markRowsAsSeen() {
-        let rows = getRows()
-        rows.forEach(row => {
+    function markLinksAsSeen() {
+        let links = getLinks()
+        links.forEach(row => {
             let identifier = getRowIdentifier(row)
             if (identifier) {
                 console.log(identifier)
@@ -202,6 +202,6 @@ function hasAnySubstringInParamKeys(paramKeys, substrings) {
         })
     }
 
-    hideRows()
-    markRowsAsSeen()
+    hideLinks()
+    markLinksAsSeen()
 })()
