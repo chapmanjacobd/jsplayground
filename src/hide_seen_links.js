@@ -153,7 +153,7 @@
     });
 
     rowData.forEach(({ row, id, count }) => {
-      if (!id || count === 0) return;
+      if (!id || count === 0 || count === 1) return;
       const ratio = count / maxCount;
       let opacity = MAX_OPACITY - (MAX_OPACITY - MIN_OPACITY) * ratio;
       opacity = Math.min(MAX_OPACITY, Math.max(MIN_OPACITY, opacity));
