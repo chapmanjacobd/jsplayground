@@ -1,14 +1,53 @@
 // ==UserScript==
-// @name         Hide Seen Links (Generic)
+// @name         Hide Seen Links (Generic, Debuggable)
 // @namespace    https://github.com/chapmanjacobd/jsplayground/
-// @version      0.5.0
-// @description  Remember and hide unique URLs across sites
+// @version      0.5.1
+// @description  Remember and dim unique URLs across sites
 // @author       Jacob Chapman
 // @match        *://*/*
-// @grant        none
+// @grant        GM_registerMenuCommand
 // ==/UserScript==
 
 (() => {
+  const STORAGE_KEY = "hide_seen_links_enabled_sites";
+
+  // Load enabled sites list
+  let enabledSites = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+
+  function currentHost() {
+    return location.hostname;
+  }
+
+  function isEnabledHere() {
+    return enabledSites.includes(currentHost());
+  }
+
+  function toggleSite() {
+    const host = currentHost();
+    if (enabledSites.includes(host)) {
+      enabledSites = enabledSites.filter(h => h !== host);
+      alert(`Disabled for ${host}`);
+    } else {
+      enabledSites.push(host);
+      alert(`Enabled for ${host}`);
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(enabledSites));
+    location.reload();
+  }
+
+  // Register menu in Tampermonkey
+  GM_registerMenuCommand(
+    (isEnabledHere() ? "Disable" : "Enable") + " Hide Seen Links on this site",
+    toggleSite
+  );
+
+  // If not enabled for this site, bail out
+  if (!isEnabledHere()) return;
+
+
+  const DEBUG = true; // toggle debugging
+  const DIM_OPACITY = 0.4; // 40% opacity for seen rows
+
   // -------------------------------
   // Link scoring
   // -------------------------------
@@ -35,6 +74,7 @@
 
     if (relativePath.length < 5) score -= 200;
 
+    if (DEBUG) console.log("[score]", link.href, "=>", score);
     return score;
   }
 
@@ -50,9 +90,16 @@
     let candidates = [];
     for (const sel of selectors) {
       const els = Array.from(document.querySelectorAll(sel));
-      candidates = candidates.concat(els.filter(el => el.querySelector("a")));
+      candidates = candidates.concat(
+        els.filter(el => el.querySelector("a") && !isSidebarOrHeader(el))
+      );
     }
     return candidates;
+  }
+
+  function isSidebarOrHeader(el) {
+    // Skip obvious sidebar/header/footer/nav content
+    return !!el.closest("header, footer, nav, aside, .sidebar, .site-header, .site-footer");
   }
 
   function getRowIdentifier(row) {
@@ -114,7 +161,7 @@
   }
 
   // -------------------------------
-  // Hiding and marking
+  // Hiding (dim) and marking
   // -------------------------------
   function hideLinks() {
     const rows = getRows();
@@ -124,7 +171,7 @@
       const identifier = getRowIdentifier(row);
       if (!identifier) return;
 
-      row.style.display = ""; // reset
+      row.style.opacity = "1"; // reset
 
       const storedValue = localStorage.getItem(identifier);
       if (storedValue) {
@@ -133,7 +180,8 @@
           const hoursDifference =
             (Date.now() - timestamp + 1000 * 60 * 5) / (1000 * 60 * 60);
           if (hoursDifference > thresholdHours) {
-            row.style.display = "none";
+            row.style.opacity = DIM_OPACITY;
+            if (DEBUG) console.log("[dimmed]", identifier, "after", hoursDifference.toFixed(2), "h");
           }
         }
       }
@@ -148,6 +196,7 @@
 
       if (!localStorage.getItem(identifier)) {
         localStorage.setItem(identifier, Date.now().toString());
+        if (DEBUG) console.log("[markSeen]", identifier);
       }
     });
   }
