@@ -1,17 +1,20 @@
 // ==UserScript==
-// @name         Hide Seen Links (Generic, Toggle + Debug)
+// @name         Hide Seen Links (Generic, Count-Based + Toggle UI)
 // @namespace    https://github.com/chapmanjacobd/jsplayground/
-// @version      0.7
-// @description  Remember and dim unique URLs across sites, with per-site enable toggle
+// @version      1.0
+// @description  Dim links more the more times they've been seen, with on-page toggle
 // @author       Jacob
 // @match        *://*/*
 // @grant        GM_registerMenuCommand
 // ==/UserScript==
 
 (() => {
-  const DEBUG = true; // console logging
-  const DIM_OPACITY = 0.4; // 40% opacity for dimmed rows
+  const DEBUG = true;
   const STORAGE_KEY = "hide_seen_links_enabled_sites";
+  const TOGGLE_KEY = "hide_seen_links_toggle";
+
+  const MIN_OPACITY = 0.3;
+  const MAX_OPACITY = 0.8;
 
   // ----------------------------------------
   // Per-site enable/disable
@@ -48,6 +51,19 @@
   if (!isEnabledHere()) return;
 
   // ----------------------------------------
+  // Helpers
+  // ----------------------------------------
+  function safeGetCount(id) {
+    const val = parseInt(localStorage.getItem(id) || "0", 10);
+    if (val > 1700000000000) {
+      localStorage.removeItem(id);
+      if (DEBUG) console.log("[cleanup on read]", id, "=> removed timestamp");
+      return 0;
+    }
+    return val;
+  }
+
+  // ----------------------------------------
   // Link scoring
   // ----------------------------------------
   function calcLinkScore(link) {
@@ -73,7 +89,6 @@
 
     if (relativePath.length < 5) score -= 200;
 
-    if (DEBUG) console.log("[score]", link.href, "=>", score);
     return score;
   }
 
@@ -85,7 +100,7 @@
   // Row / identifier detection
   // ----------------------------------------
   function getRows() {
-    const selectors = ["article", "li", "div", "tr"];
+    const selectors = ["tr", "li", "a", "span"];
     let candidates = [];
     for (const sel of selectors) {
       const els = Array.from(document.querySelectorAll(sel));
@@ -107,10 +122,9 @@
       el.closest("header, footer, nav, aside, .sidebar, .site-header, .site-footer")
     )
       return true;
-    // also check id/class keywords
     const id = (el.id || "").toLowerCase();
     const cls = (el.className || "").toLowerCase();
-    return /(header|side|nav|foot|menu|toolbar)/.test(id + " " + cls);
+    return /(header|side|nav|foot|menu|toolbar|comment)/.test(id + " " + cls);
   }
 
   function getRowIdentifier(row) {
@@ -121,105 +135,94 @@
   }
 
   // ----------------------------------------
-  // Slider UI
+  // Opacity calculation
   // ----------------------------------------
-  const sliderHtml = `
-    <div id="hide_seen_links" style="
-      position: fixed;
-      bottom: 18px;
-      left: 0;
-      background: rgba(255, 255, 255, 0.8);
-      padding: 10px;
-      border-radius: 5px;
-      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-      z-index: 10000;
-      ">
-      <details><summary>L</summary>
-        <input type="range" id="timeThresholdSlider" min="0" max="300" value="0">
-        <span id="timeThresholdDisplay" style="width:200px;"></span>
-      </details>
-    </div>
-  `;
-  const container = document.createElement("div");
-  container.innerHTML = sliderHtml;
-  document.body.appendChild(container);
-
-  document.getElementById("timeThresholdSlider").addEventListener("input", () => {
-    updateThresholdDisplay();
-    hideLinks();
-  });
-
-  function getTimeThreshold() {
-    const slider = document.getElementById("timeThresholdSlider");
-    if (slider.value === slider.max) return; // disabled
-    return parseFloat(slider.value);
-  }
-
-  function updateThresholdDisplay() {
-    const thresholdHours = getTimeThreshold();
-    let displayText = "";
-    if (thresholdHours === void 0) {
-      displayText = "disabled";
-    } else {
-      const days = Math.floor(thresholdHours / 24);
-      const hours = Math.floor(thresholdHours % 24);
-      if (days > 0) displayText += days + " day" + (days > 1 ? "s" : "");
-      if (hours > 0 || days === 0)
-        displayText += " " + hours + " hour" + (hours > 1 ? "s" : "");
+  function applyOpacity(rows) {
+    if (!isToggleOn()) {
+      rows.forEach(r => (r.style.opacity = ""));
+      return;
     }
-    document.getElementById("timeThresholdDisplay").textContent = displayText;
-  }
 
-  // ----------------------------------------
-  // Hiding (dim) and marking
-  // ----------------------------------------
-  function hideLinks() {
-    const rows = getRows();
-    const thresholdHours = getTimeThreshold();
+    let maxCount = 1;
+    const rowData = rows.map(row => {
+      const id = getRowIdentifier(row);
+      if (!id) return { row, id, count: 0 };
+      const count = safeGetCount(id);
+      if (count > maxCount) maxCount = count;
+      return { row, id, count };
+    });
 
-    rows.forEach(row => {
-      const identifier = getRowIdentifier(row);
-      if (!identifier) return;
-      row.style.opacity = "1"; // reset
-
-      const storedValue = localStorage.getItem(identifier);
-      if (storedValue) {
-        const timestamp = parseInt(storedValue, 10);
-        if (!isNaN(timestamp) && thresholdHours !== undefined) {
-          const hoursDifference =
-            (Date.now() - timestamp + 1000 * 60 * 5) / (1000 * 60 * 60);
-          if (hoursDifference > thresholdHours) {
-            row.style.opacity = DIM_OPACITY;
-            if (DEBUG)
-              console.log(
-                "[dimmed]",
-                identifier,
-                "after",
-                hoursDifference.toFixed(2),
-                "h"
-              );
-          }
-        }
-      }
+    rowData.forEach(({ row, id, count }) => {
+      if (!id || count === 0) return;
+      const ratio = count / maxCount;
+      let opacity = MAX_OPACITY - (MAX_OPACITY - MIN_OPACITY) * ratio;
+      opacity = Math.min(MAX_OPACITY, Math.max(MIN_OPACITY, opacity));
+      row.style.opacity = opacity.toFixed(2);
+      if (DEBUG) console.log("[dim]", id, "count", count, "opacity", opacity);
     });
   }
 
-  function markLinksAsSeen() {
-    const rows = getRows();
+  // ----------------------------------------
+  // Mark links as seen
+  // ----------------------------------------
+  function markLinks(rows) {
     rows.forEach(row => {
-      const identifier = getRowIdentifier(row);
-      if (!identifier) return;
-      if (!localStorage.getItem(identifier)) {
-        localStorage.setItem(identifier, Date.now().toString());
-        if (DEBUG) console.log("[markSeen]", identifier);
-      }
+      const id = getRowIdentifier(row);
+      if (!id) return;
+      const current = safeGetCount(id);
+      const next = current + 1;
+      localStorage.setItem(id, next.toString());
+      if (DEBUG) console.log("[markSeen]", id, "->", next);
     });
+  }
+
+  // ----------------------------------------
+  // Toggle UI
+  // ----------------------------------------
+  function isToggleOn() {
+    return localStorage.getItem(TOGGLE_KEY) !== "off";
+  }
+
+  function setToggle(on) {
+    localStorage.setItem(TOGGLE_KEY, on ? "on" : "off");
+    applyOpacity(getRows());
+  }
+
+  function createToggleUI() {
+    const box = document.createElement("div");
+    box.style.position = "fixed";
+    box.style.bottom = "10px";
+    box.style.right = "10px";
+    box.style.background = "rgba(255,255,255,0.8)";
+    box.style.padding = "5px 10px";
+    box.style.border = "1px solid #ccc";
+    box.style.borderRadius = "5px";
+    box.style.zIndex = "99999";
+    box.style.fontSize = "12px";
+
+    const label = document.createElement("label");
+    label.style.cursor = "pointer";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = isToggleOn();
+    checkbox.style.marginRight = "5px";
+
+    checkbox.addEventListener("change", () => {
+      setToggle(checkbox.checked);
+    });
+
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode("Dim seen links"));
+    box.appendChild(label);
+    document.body.appendChild(box);
   }
 
   // ----------------------------------------
   // Init
   // ----------------------------------------
-  updateThresholdDisplay();
-  hideLinks();
-  markLinksAsSeen();
+  const rows = getRows();
+  markLinks(rows);
+  applyOpacity(rows);
+  createToggleUI();
 })();
