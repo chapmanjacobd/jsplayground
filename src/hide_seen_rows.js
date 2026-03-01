@@ -1,207 +1,75 @@
-/**
- * @param HTMLAnchorElement link
- */
-export function calcLinkScore(link) {
-    const relativePath = link.pathname + link.search
-    const searchParams = new URLSearchParams(link.search)
-    const paramKeys = Array.from(searchParams.keys())
+// ==UserScript==
+// @name         Table Click Filter
+// @namespace    http://tampermonkey.net/
+// @version      0.2
+// @description  Click a table cell, filter the column based on input. Opt-in per site.
+// @author       You
+// @match        *://*/*
+// @grant        GM_registerMenuCommand
+// ==/UserScript==
 
-    let score = 0
+(() => {
+    'use strict';
 
-    if (link.innerText && link.innerText.length > 10) {
-        score += 3
-    }
+    const STORAGE_KEY = "table_click_filter_enabled_sites";
 
-    if (link.title) {
-        score += 2
-    }
+    let enabledSites = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const currentHost = location.hostname;
 
-    if (relativePath.includes('download')) {
-        score += 1
-    }
+    const isEnabledHere = () => enabledSites.includes(currentHost);
 
-    if (link.protocol in ['javascript:', 'magnet:']) {
-        score -= 2
-    }
-
-    if (relativePath.length > 100) {
-        score -= 3
-    }
-
-    if (paramKeys.length && hasAnySubstringInParamKeys(paramKeys, ['id'])) {
-        score += 2
-    }
-
-    if (paramKeys.length && hasAnySubstringInParamKeys(paramKeys, ['category', 'cat'])) {
-        score -= 8
-    }
-
-    if (relativePath.includes('comment')) {
-        score -= 5
-    }
-    if (relativePath.includes('guides')) {
-        score -= 5
-    }
-
-    if (relativePath.length < 5) {
-        score -= 200
-    }
-
-    return score
-}
-
-export function sortByPriority(links) {
-    if ('sort' in links)
-        return links.sort((a, b) => calcLinkScore(b) - calcLinkScore(a))
-    else
-        return links.values().toArray().sort((a, b) => calcLinkScore(b) - calcLinkScore(a))
-}
-
-function hasAnySubstringInParamKeys(paramKeys, substrings) {
-    for (const key of paramKeys) {
-        for (const substring of substrings) {
-            if (key.includes(substring)) {
-                return true
-            }
-        }
-    }
-    return false
-}
-
-(function () {
-    'use strict'
-
-    let sliderHtml = `
-        <div id="hide_seen_rows" style="
-            position: fixed;
-            bottom: 10px;
-            left: 0;
-            background: rgba(255, 255, 255, 0.8);
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
-            z-index: 1000;
-            ">
-            <details><summary>h</summary>
-            <input type="range" id="timeThresholdSlider" min="0" max="300" value="0">
-                <span id="timeThresholdDisplay" style="width: 200px;"></span>
-            </details>
-        </div>
-    `
-
-    let container = document.createElement('div')
-    container.innerHTML = sliderHtml
-    document.body.appendChild(container)
-
-    document.getElementById('timeThresholdSlider').addEventListener('input', function () {
-        let thresholdHours = getTimeThreshold()
-        let displayText = ''
-        if (thresholdHours === undefined) {
-            displayText = 'disabled'
+    function toggleSite() {
+        if (isEnabledHere()) {
+            enabledSites = enabledSites.filter(h => h !== currentHost);
         } else {
-            let days = Math.floor(thresholdHours / 24)
-            let hours = Math.floor(thresholdHours % 24)
-
-            if (days > 0) {
-                displayText += days + ' day' + (days > 1 ? 's' : '')
-            }
-
-            if (hours > 0 || days === 0) {
-                displayText += ' ' + hours + ' hour' + (hours > 1 ? 's' : '')
-            }
+            enabledSites.push(currentHost);
         }
-
-        document.getElementById('timeThresholdDisplay').textContent = displayText
-        hideRows()
-    })
-
-    function getTimeThreshold() {
-        let slider = document.getElementById('timeThresholdSlider')
-        if (slider.value === slider.max) return
-        let value = parseFloat(slider.value)
-        return value
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(enabledSites));
+        location.reload();
     }
 
-    function hideRows() {
-        let rows = getRows()
-        let thresholdHours = getTimeThreshold()
+    GM_registerMenuCommand(
+        (isEnabledHere() ? "Disable" : "Enable") + " Table Filter on this site",
+        toggleSite
+    );
 
-        rows.forEach(row => {
-            let identifier = getRowIdentifier(row)
-            if (identifier) {
-                row.style.display = ""
+    if (!isEnabledHere()) return;
 
-                let storedValue = localStorage.getItem(identifier)
-                if (storedValue) {
-                    let timestamp = parseInt(storedValue, 10)
-                    if (!isNaN(timestamp)) {
-                        let timeDifference = Date.now() - timestamp + (1000 * 60 * 5)
-                        let hoursDifference = timeDifference / (1000 * 60 * 60)
-                        if (hoursDifference > thresholdHours) {
-                            row.style.display = "none"
-                        }
-                    }
+    function filterColumn(args) {
+        const { table, columnIndex, filterText } = args;
+        if (!table || !table.rows || table.rows.length === 0) return;
+
+        for (let i = 1; i < table.rows.length; i++) {
+            const row = table.rows[i];
+            if (row.cells.length > columnIndex) {
+                const cellText = row.cells[columnIndex].innerText;
+                if (filterText && !cellText.includes(filterText)) {
+                    row.style.display = 'none';
                 }
             }
-        })
-    }
-
-    function getRowIdentifier(row) {
-        let links = row.querySelectorAll('a')
-
-        if (links.length === 0) {
-            return null
         }
-
-        return sortByPriority(links)[0]
     }
 
-    function findTableWithMostRows() {
-        let tables = document.querySelectorAll('table')
-        let minRows = 5
-        let maxRows = 0
-        let tableWithMostRows = null
+    function handleCellClick(event) {
+        const target = event.target;
+        if (target.tagName !== 'TD') return;
 
-        tables.forEach(table => {
-            let rows = table.querySelectorAll('tr')
-            let directRows = Array.from(rows).filter(row => row.parentElement === table || (row.parentElement.tagName === 'TBODY' && row.parentElement.parentElement === table))
-            if (directRows.length > maxRows && directRows.length > minRows) {
-                maxRows = directRows.length
-                tableWithMostRows = table
-            }
-        })
+        const table = target.closest('table');
+        if (!table) return;
 
-        if (maxRows == 0) {
-            document.getElementById('hide_seen_rows').style.display = "none"
-        } else {
-            document.getElementById('hide_seen_rows').style.display = "block"
-        }
+        const cellText = target.innerText;
+        const userInput = prompt("Filter by:", cellText);
 
-        return tableWithMostRows
+        if (userInput === null) return;
+
+        const filterValue = userInput.trim() === "" ? cellText : userInput.trim();
+
+        filterColumn({
+            table: table,
+            columnIndex: target.cellIndex,
+            filterText: filterValue
+        });
     }
 
-    function getRows() {
-        let tableWithMostRows = findTableWithMostRows()
-        if (tableWithMostRows) {
-            return tableWithMostRows.querySelectorAll('tr')
-        }
-        return []
-    }
-
-    function markRowsAsSeen() {
-        let rows = getRows()
-        rows.forEach(row => {
-            let identifier = getRowIdentifier(row)
-            if (identifier) {
-                console.log(identifier)
-                let storedValue = localStorage.getItem(identifier)
-                if (!storedValue || isNaN(parseInt(storedValue, 10))) {
-                    localStorage.setItem(identifier, Date.now().toString())
-                }
-            }
-        })
-    }
-
-    hideRows()
-    markRowsAsSeen()
-})()
+    document.addEventListener('click', handleCellClick);
+})();
