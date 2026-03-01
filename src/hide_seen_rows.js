@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Table Click Filter
 // @namespace    http://tampermonkey.net/
-// @version      0.4
-// @description  Click a table cell, hide the row if it matches the input. Opt-in per site.
+// @version      0.7
+// @description  Exclude rows via click. Persists filters per hostname & handles dynamic content.
 // @author       You
 // @match        *://*/*
 // @grant        GM_registerMenuCommand
@@ -11,71 +11,91 @@
 (() => {
     'use strict';
 
-    const STORAGE_KEY = "table_click_filter_enabled_sites";
-    const currentHost = location.hostname;
-    let enabledSites = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+    const SITE_KEY = "table_click_filter_enabled_sites";
+    const FILTER_KEY = "table_click_filters";
+    const host = location.hostname;
 
-    const isEnabledHere = () => enabledSites.includes(currentHost);
+    let enabledSites = JSON.parse(localStorage.getItem(SITE_KEY) || "[]");
+    let siteFilters = JSON.parse(localStorage.getItem(FILTER_KEY) || "{}");
+    let currentFilters = siteFilters[host] || [];
 
-    function toggleSite() {
-        if (isEnabledHere()) {
-            enabledSites = enabledSites.filter(h => h !== currentHost);
-        } else {
-            enabledSites.push(currentHost);
-        }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(enabledSites));
-        location.reload();
+    const isEnabledHere = () => enabledSites.includes(host);
+
+    function saveState() {
+        localStorage.setItem(SITE_KEY, JSON.stringify(enabledSites));
+        siteFilters[host] = currentFilters;
+        localStorage.setItem(FILTER_KEY, JSON.stringify(siteFilters));
     }
 
     function resetFilters() {
+        currentFilters = [];
+        saveState();
         document.querySelectorAll('tr').forEach(row => row.style.display = '');
     }
 
-    GM_registerMenuCommand(
-        (isEnabledHere() ? "Disable" : "Enable") + " Table Filter on this site",
-        toggleSite
-    );
+    function toggleSite() {
+        if (isEnabledHere()) {
+            enabledSites = enabledSites.filter(h => h !== host);
+        } else {
+            enabledSites.push(host);
+        }
+        saveState();
+        location.reload();
+    }
+
+    function applyFiltersToRow(row) {
+        if (row.tagName !== 'TR' || row.querySelector('th')) return;
+        
+        const rowText = row.innerText.toLowerCase();
+        const shouldHide = currentFilters.some(f => rowText.includes(f.toLowerCase()));
+        
+        row.style.display = shouldHide ? 'none' : '';
+    }
+
+    function scanAll() {
+        document.querySelectorAll('tr').forEach(applyFiltersToRow);
+    }
+
+    GM_registerMenuCommand((isEnabledHere() ? "Disable" : "Enable") + " Table Filter", toggleSite);
 
     if (!isEnabledHere()) return;
 
     GM_registerMenuCommand("Reset Table Filters", resetFilters);
 
-    function filterColumn(args) {
-        const { table, columnIndex, filterText } = args;
-        if (!table || !table.rows) return;
-
-        for (let i = 1; i < table.rows.length; i++) {
-            const row = table.rows[i];
-            if (row.cells.length > columnIndex) {
-                const cellText = row.cells[columnIndex].innerText;
-                
-                if (cellText.includes(filterText)) {
-                    row.style.display = 'none';
-                }
+    const observer = new MutationObserver(mutations => {
+        requestAnimationFrame(() => {
+            for (const mutation of mutations) {
+                mutation.addedNodes.forEach(node => {
+                    if (node.nodeType !== Node.ELEMENT_NODE) return;
+                    if (node.tagName === 'TR') {
+                        applyFiltersToRow(node);
+                    } else {
+                        node.querySelectorAll('tr').forEach(applyFiltersToRow);
+                    }
+                });
             }
-        }
-    }
+        });
+    });
 
-    function handleCellClick(event) {
+    observer.observe(document.body, { childList: true, subtree: true });
+    scanAll();
+
+    document.addEventListener('click', (event) => {
         const target = event.target;
         if (target.tagName !== 'TD') return;
 
-        const table = target.closest('table');
-        if (!table) return;
+        const cellText = target.innerText.trim();
+        if (!cellText) return;
 
-        const cellText = target.innerText;
         const userInput = prompt("Exclude rows containing:", cellText);
-
         if (userInput === null) return;
 
-        const filterValue = userInput.trim() === "" ? cellText : userInput.trim();
-
-        filterColumn({
-            table: table,
-            columnIndex: target.cellIndex,
-            filterText: filterValue
-        });
-    }
-
-    document.addEventListener('click', handleCellClick);
+        const filterValue = userInput === "" ? cellText : userInput;
+        
+        if (!currentFilters.includes(filterValue)) {
+            currentFilters.push(filterValue);
+            saveState();
+            scanAll();
+        }
+    });
 })();
